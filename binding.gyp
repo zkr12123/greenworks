@@ -5,6 +5,14 @@
   },
 
   'conditions': [
+    ['OS== "win" and target_arch=="x64"',
+      {
+        'defines': [
+          '_AMD64_',
+          'NOMINMAX'
+        ],
+      },
+    ],
     ['OS=="win"', {
       'conditions': [
         ['target_arch=="ia32"', {

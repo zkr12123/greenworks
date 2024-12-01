@@ -26,6 +26,15 @@ function error_process(err, error_callback) {
     error_callback(err);
 }
 
+greenworks.ugcCreateItem = function(workshop_file_type, success_callback, error_callback) {
+  greenworks._ugcCreateItem(
+    greenworks.getAppId(),
+    workshop_file_type,
+    success_callback,
+    error_callback
+  )
+}
+
 greenworks.ugcGetItems = function(options, ugc_matching_type, ugc_query_type,
     success_callback, error_callback) {
   if (typeof options !== 'object') {

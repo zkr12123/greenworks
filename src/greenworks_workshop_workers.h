@@ -13,6 +13,34 @@
 
 namespace greenworks {
 
+// Definition of ISteamUGC::CreateItem
+class CreateItemWorker : public SteamCallbackAsyncWorker {
+    public:
+        CreateItemWorker(
+            Nan::Callback* success_callback,
+            Nan::Callback* error_callback,
+            uint32 app_id,
+            EWorkshopFileType workshop_file_type
+        );
+
+        void OnCreateItemCompleted(
+            CreateItemResult_t* result, 
+            bool io_failure
+        ); // Function to retrieve CallResult, must set "is_completed_" true
+        void Execute() override;
+        void HandleOKCallback() override; // Function to return values with node callback
+
+    private:
+        uint32 app_id_;
+        EWorkshopFileType workshop_file_type_;
+        PublishedFileId_t published_file_id_;
+        bool user_needs_to_accept_workshop_legal_agreement_;
+        CCallResult<CreateItemWorker, CreateItemResult_t> call_result_;
+};
+
+// Definition of ISteamUGC::StartItemUpdate
+// class StartItemUpdateWorker : public 
+
 class FileShareWorker : public SteamCallbackAsyncWorker {
  public:
   FileShareWorker(Nan::Callback* success_callback,

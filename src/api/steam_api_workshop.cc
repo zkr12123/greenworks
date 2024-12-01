@@ -13,6 +13,35 @@ namespace greenworks {
 namespace api {
 namespace {
 
+// isteamremotestorage.h: Export EWorkshopFileType for use in ISteamUGC::CreateItem
+void InitWorkShopFileType(v8::Local<v8::Object> exports) {
+  v8::Local<v8::Object> workshop_file_type = Nan::New<v8::Object>();
+  SET_TYPE(workshop_file_type, "First", k_EWorkshopFileTypeFirst);
+  SET_TYPE(workshop_file_type, "Community", k_EWorkshopFileTypeCommunity);
+  SET_TYPE(workshop_file_type, "Microtransaction", k_EWorkshopFileTypeMicrotransaction);
+  SET_TYPE(workshop_file_type, "Collection", k_EWorkshopFileTypeCollection);
+  SET_TYPE(workshop_file_type, "Art", k_EWorkshopFileTypeArt);
+  SET_TYPE(workshop_file_type, "Video", k_EWorkshopFileTypeVideo);
+  SET_TYPE(workshop_file_type, "Screenshot", k_EWorkshopFileTypeScreenshot);
+  SET_TYPE(workshop_file_type, "Game", k_EWorkshopFileTypeGame);
+  SET_TYPE(workshop_file_type, "Software", k_EWorkshopFileTypeSoftware);
+  SET_TYPE(workshop_file_type, "Concept", k_EWorkshopFileTypeConcept);
+  SET_TYPE(workshop_file_type, "WebGuide", k_EWorkshopFileTypeWebGuide);
+  SET_TYPE(workshop_file_type, "IntegratedGuide", k_EWorkshopFileTypeIntegratedGuide);
+  SET_TYPE(workshop_file_type, "Merch", k_EWorkshopFileTypeMerch);
+  SET_TYPE(workshop_file_type, "ControllerBinding", k_EWorkshopFileTypeControllerBinding);
+  SET_TYPE(workshop_file_type, "SteamworksAccessInvite", k_EWorkshopFileTypeSteamworksAccessInvite);
+  SET_TYPE(workshop_file_type, "SteamVideo", k_EWorkshopFileTypeSteamVideo);
+  SET_TYPE(workshop_file_type, "GameManagedItem", k_EWorkshopFileTypeGameManagedItem);
+  SET_TYPE(workshop_file_type, "Clip", k_EWorkshopFileTypeClip);
+  SET_TYPE(workshop_file_type, "Max", k_EWorkshopFileTypeMax);
+  Nan::Persistent<v8::Object> constructor;
+  constructor.Reset(workshop_file_type);
+  Nan::Set(exports,
+           Nan::New("WorkshopFileType").ToLocalChecked(),
+           workshop_file_type);
+}
+
 void InitUgcMatchingTypes(v8::Local<v8::Object> exports) {
   v8::Local<v8::Object> ugc_matching_type = Nan::New<v8::Object>();
   SET_TYPE(ugc_matching_type, "Items", k_EUGCMatchingUGCType_Items);
@@ -117,6 +146,34 @@ void InitUgcItemStates(v8::Local<v8::Object> exports) {
   Nan::Persistent<v8::Object> constructor;
   constructor.Reset(ugc_item_state);
   Nan::Set(exports, Nan::New("UGCItemState").ToLocalChecked(), ugc_item_state);
+}
+
+// Parser for CreateItemWorker
+NAN_METHOD(UGCCreateItem) {
+  Nan::HandleScope scope;
+
+  // app_id: Integer, workshop_file_type: EWorkshopFileType, success_callback: function, [error_callback: function]
+  if (info.Length() < 3 || !info[0]->IsInt32() || !info[1]->IsInt32() || !info[2]->IsFunction()) {
+    THROW_BAD_ARGS("Bad arguments");
+  }
+  
+  auto app_id = Nan::To<int32>(info[0]).FromJust(); // Nan::To<int32> return type Nan::Maybe for native datatypes (int32)
+  
+  auto workshop_file_type = static_cast<EWorkshopFileType>(
+      Nan::To<int32>(info[1]).FromJust());
+
+  Nan::Callback* success_callback = 
+    new Nan::Callback(info[2].As<v8::Function>());
+  
+  Nan::Callback* error_callback = nullptr;
+  if (info.Length() > 3 && info[3]->IsFunction())
+    error_callback = new Nan::Callback(info[2].As<v8::Function>());
+
+  // Run the worker
+  Nan::AsyncQueueWorker(new greenworks::CreateItemWorker(
+    success_callback, error_callback, app_id, workshop_file_type
+  ));
+  info.GetReturnValue().Set(Nan::Undefined());
 }
 
 NAN_METHOD(FileShare) {
@@ -431,12 +488,14 @@ NAN_METHOD(UGCGetItemInstallInfo) {
 }
 
 void RegisterAPIs(v8::Local<v8::Object> target) {
+  InitWorkShopFileType(target);
   InitUgcMatchingTypes(target);
   InitUgcQueryTypes(target);
   InitUserUgcListSortOrder(target);
   InitUserUgcList(target);
   InitUgcItemStates(target);
 
+  SET_FUNCTION("_ugcCreateItem", UGCCreateItem);
   SET_FUNCTION("fileShare", FileShare);
   SET_FUNCTION("_publishWorkshopFile", PublishWorkshopFile);
   SET_FUNCTION("_updatePublishedWorkshopFile", UpdatePublishedWorkshopFile);

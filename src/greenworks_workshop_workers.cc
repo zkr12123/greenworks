@@ -89,6 +89,51 @@ inline std::string GetAbsoluteFilePath(const std::string& file_path,
 
 namespace greenworks {
 
+// Implementation of ISteamUGC::CreateItem
+CreateItemWorker::CreateItemWorker(
+  Nan::Callback* success_callback,
+  Nan::Callback* error_callback,
+  uint32 app_id,
+  EWorkshopFileType workshop_file_type
+):
+  SteamCallbackAsyncWorker(success_callback, error_callback),
+  app_id_(app_id),
+  workshop_file_type_(workshop_file_type) {
+
+}
+
+void CreateItemWorker::Execute() {
+  SteamAPICall_t create_item = SteamUGC()->CreateItem(app_id_, workshop_file_type_);
+  call_result_.Set(create_item, this, &CreateItemWorker::OnCreateItemCompleted);
+  WaitForCompleted();
+}
+
+void CreateItemWorker::OnCreateItemCompleted(
+  CreateItemResult_t* result, 
+  bool io_failure
+) {
+  if (io_failure) {
+    SetErrorMessage("Error on ISteamUGC::CreateItem : Steam API IO Failure"); // Sets char *errmsg_ defined in AsyncWorker base class
+  } else if (result->m_eResult == k_EResultOK) {
+    published_file_id_ = result->m_nPublishedFileId;
+    user_needs_to_accept_workshop_legal_agreement_ = result->m_bUserNeedsToAcceptWorkshopLegalAgreement;
+  } else {
+    SetErrorMessage("Error on ISteamUGC::CreateItem : Check result->m_eResult for error code"); // Message returned when calling ErrorMessage(), defined in AsyncWorker base class
+  }
+  is_completed_ = true;
+}
+
+void CreateItemWorker::HandleOKCallback() {
+  Nan::HandleScope scope;
+
+  v8::Local<v8::Value> argv[] = {
+    Nan::New(utils::uint64ToString(published_file_id_)).ToLocalChecked(), // v8::String
+    Nan::New(user_needs_to_accept_workshop_legal_agreement_) // v8::Boolean
+  };
+  Nan::AsyncResource resource("greenworks:CreateItemWorker.HandleOKCallback");
+  callback->Call(2, argv, &resource);
+}
+
 FileShareWorker::FileShareWorker(Nan::Callback* success_callback,
     Nan::Callback* error_callback, const std::string& file_path)
         :SteamCallbackAsyncWorker(success_callback, error_callback),

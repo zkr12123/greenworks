@@ -9,12 +9,14 @@
 #include "greenworks_async_workers.h"
 #include "steam_api_registry.h"
 
+#include "greenworks_utils.h"
+
 namespace greenworks {
 namespace api {
 namespace {
 
 // isteamremotestorage.h: Export EWorkshopFileType for use in ISteamUGC::CreateItem
-void InitWorkShopFileType(v8::Local<v8::Object> exports) {
+void InitWorkShopFileTypes(v8::Local<v8::Object> exports) {
   v8::Local<v8::Object> workshop_file_type = Nan::New<v8::Object>();
   SET_TYPE(workshop_file_type, "First", k_EWorkshopFileTypeFirst);
   SET_TYPE(workshop_file_type, "Community", k_EWorkshopFileTypeCommunity);
@@ -40,6 +42,20 @@ void InitWorkShopFileType(v8::Local<v8::Object> exports) {
   Nan::Set(exports,
            Nan::New("WorkshopFileType").ToLocalChecked(),
            workshop_file_type);
+}
+
+// isteamremotestorage.h: ERemoteStoragePublishedFileVisibility
+void InitPublishedFileVisibilityTypes(v8::Local<v8::Object> exports) {
+  v8::Local<v8::Object> published_file_visibility_type = Nan::New<v8::Object>();
+  SET_TYPE(published_file_visibility_type, "Public", k_ERemoteStoragePublishedFileVisibilityPublic);
+  SET_TYPE(published_file_visibility_type, "FriendsOnly", k_ERemoteStoragePublishedFileVisibilityFriendsOnly);
+  SET_TYPE(published_file_visibility_type, "Private", k_ERemoteStoragePublishedFileVisibilityPrivate);
+  SET_TYPE(published_file_visibility_type, "Unlisted", k_ERemoteStoragePublishedFileVisibilityUnlisted);
+  Nan::Persistent<v8::Object> constructor;
+  constructor.Reset(published_file_visibility_type);
+  Nan::Set(exports,
+           Nan::New("PublishedFileVisibilityType").ToLocalChecked(),
+           published_file_visibility_type);
 }
 
 void InitUgcMatchingTypes(v8::Local<v8::Object> exports) {
@@ -174,6 +190,196 @@ NAN_METHOD(UGCCreateItem) {
     success_callback, error_callback, app_id, workshop_file_type
   ));
   info.GetReturnValue().Set(Nan::Undefined());
+}
+
+/*
+==========UGCItemUpdate and related functions==========
+*/
+
+NAN_METHOD(UGCStartItemUpdate) {
+  /*
+  Input: 
+    - appid (Integer): uint32
+    - handle (String): PublishedFileId_t (uint64)
+  Output:
+    - UGCUpdateHandle_t (String): uint64
+  */
+  Nan::HandleScope scope;
+  
+  if (info.Length() < 2 || !info[0]->IsInt32() || !info[1]->IsString()) {
+    THROW_BAD_ARGS("Bad arguments");
+  }
+
+  // Get appid and handle
+  AppId_t app_id = Nan::To<int32>(info[0]).FromJust();
+  PublishedFileId_t published_file_id = utils::strToUint64(*(Nan::Utf8String(info[1])));
+
+  // Start an item update
+  UGCUpdateHandle_t update_handle = SteamUGC()->StartItemUpdate(app_id, published_file_id);
+
+  // Return the update handle
+  v8::Local<v8::String> update_handle_str = Nan::New(utils::uint64ToString(update_handle)).ToLocalChecked();
+  info.GetReturnValue().Set(update_handle_str);
+}
+
+NAN_METHOD(UGCSetItemTitle) {
+  /*
+  Input: 
+    - handle (String): UGCUpdateHandle_t (uint64)
+    - title (String): const char *pchTitle
+  Output:
+    - Boolean: true if success, false if failed
+  */
+  Nan::HandleScope scope;
+
+  if (info.Length() < 2 || !info[0]->IsString() || !info[1]->IsString()) {
+    THROW_BAD_ARGS("Bad arguments");
+  }
+
+  // Get handle and title
+  UGCUpdateHandle_t update_handle = utils::strToUint64(*(Nan::Utf8String(info[0])));
+  Nan::Utf8String pchTitle(info[1]);
+
+  // Set title
+  bool result = SteamUGC()->SetItemTitle(update_handle, *pchTitle);
+
+  info.GetReturnValue().Set(Nan::New(result));
+}
+
+NAN_METHOD(UGCSetItemDescription) {
+  /*
+  Input: 
+    - handle (String): UGCUpdateHandle_t (uint64)
+    - description (String): const char *pchDescription
+  Output:
+    - Boolean: true if success, false if failed
+  */
+  Nan::HandleScope scope;
+
+  if (info.Length() < 2 || !info[0]->IsString() || !info[1]->IsString()) {
+    THROW_BAD_ARGS("Bad arguments");
+  }
+
+  // Get handle and description
+  UGCUpdateHandle_t update_handle = utils::strToUint64(*(Nan::Utf8String(info[0])));
+  Nan::Utf8String pchDescription(info[1]);
+
+  // Set description
+  bool result = SteamUGC()->SetItemDescription(update_handle, *pchDescription);
+
+  info.GetReturnValue().Set(Nan::New(result));
+}
+
+NAN_METHOD(UGCSetItemVisibility) {
+  /*
+  Input: 
+    - handle (String): UGCUpdateHandle_t (uint64)
+    - visibility (Integer): ERemoteStoragePublishedFileVisibility eVisibility
+  Output:
+    - Boolean: true if success, false if failed
+  */
+  Nan::HandleScope scope;
+
+  if (info.Length() < 2 || !info[0]->IsString() || !info[1]->IsInt32()) {
+    THROW_BAD_ARGS("Bad arguments");
+  }
+
+  // Get handle and visibility
+  UGCUpdateHandle_t update_handle = utils::strToUint64(*(Nan::Utf8String(info[0])));
+  auto eVisibility = static_cast<ERemoteStoragePublishedFileVisibility>(
+    Nan::To<int32>(info[1]).FromJust());
+
+  // Set visibility
+  bool result = SteamUGC()->SetItemVisibility(update_handle, eVisibility);
+
+  info.GetReturnValue().Set(Nan::New(result));
+}
+
+NAN_METHOD(UGCSetItemTags) {
+  /*
+  Input: 
+    - handle (String): UGCUpdateHandle_t (uint64)
+    - tags (Array): const SteamParamStringArray_t *pTags
+  Output:
+    - Boolean: true if success, false if failed
+  */
+  Nan::HandleScope scope;
+
+  if (info.Length() < 2 || !info[0]->IsString() || !info[1]->IsArray()) {
+    THROW_BAD_ARGS("Bad arguments");
+  }
+
+  // Get handle and tags
+  UGCUpdateHandle_t update_handle = utils::strToUint64(*(Nan::Utf8String(info[0])));
+  v8::Local<v8::Array> tags_array = info[1].As<v8::Array>();
+
+  // Instantiate a char* [] to process tags_array
+  const char** tags_scratch = new const char* [tags_array->Length()];
+  for (uint32_t i = 0; i < tags_array->Length(); ++i) {
+    if (!Nan::Get(tags_array, i).ToLocalChecked()->IsString())
+      THROW_BAD_ARGS("Bad arguments");
+    Nan::Utf8String tag(Nan::Get(tags_array, i).ToLocalChecked());
+    tags_scratch[i] = *tag;
+  }
+
+  // Instantiate a SteamParamStringArray_t
+  SteamParamStringArray_t Tags;
+  Tags.m_ppStrings = tags_scratch;
+  Tags.m_nNumStrings = tags_array->Length();
+
+  // Set tags
+  bool result = SteamUGC()->SetItemTags(update_handle, &Tags);
+
+  delete[] tags_scratch;
+  info.GetReturnValue().Set(Nan::New(result));
+}
+
+NAN_METHOD(UGCSetItemContent) {
+  /*
+  Input: 
+    - handle (String): UGCUpdateHandle_t (uint64)
+    - content (String): const char *pszContentFolder
+  Output:
+    - Boolean: true if success, false if failed
+  */
+  Nan::HandleScope scope;
+
+  if (info.Length() < 2 || !info[0]->IsString() || !info[1]->IsString()) {
+    THROW_BAD_ARGS("Bad arguments");
+  }
+
+  // Get handle and content
+  UGCUpdateHandle_t update_handle = utils::strToUint64(*(Nan::Utf8String(info[0])));
+  Nan::Utf8String szContentFolder(info[1]);
+
+  // Set content
+  bool result = SteamUGC()->SetItemContent(update_handle, *szContentFolder);
+
+  info.GetReturnValue().Set(Nan::New(result));
+}
+
+NAN_METHOD(UGCSetItemPreview) {
+  /*
+  Input: 
+    - handle (String): UGCUpdateHandle_t (uint64)
+    - preview (String): const char *pszPreviewFile
+  Output:
+    - Boolean: true if success, false if failed
+  */
+  Nan::HandleScope scope;
+
+  if (info.Length() < 2 || !info[0]->IsString() || !info[1]->IsString()) {
+    THROW_BAD_ARGS("Bad arguments");
+  }
+
+  // Get handle and preview
+  UGCUpdateHandle_t update_handle = utils::strToUint64(*(Nan::Utf8String(info[0])));
+  Nan::Utf8String szPreviewFile(info[1]);
+
+  // Set preview
+  bool result = SteamUGC()->SetItemPreview(update_handle, *szPreviewFile);
+
+  info.GetReturnValue().Set(Nan::New(result));
 }
 
 NAN_METHOD(FileShare) {
@@ -488,7 +694,8 @@ NAN_METHOD(UGCGetItemInstallInfo) {
 }
 
 void RegisterAPIs(v8::Local<v8::Object> target) {
-  InitWorkShopFileType(target);
+  InitWorkShopFileTypes(target);
+  InitPublishedFileVisibilityTypes(target);
   InitUgcMatchingTypes(target);
   InitUgcQueryTypes(target);
   InitUserUgcListSortOrder(target);
@@ -496,6 +703,13 @@ void RegisterAPIs(v8::Local<v8::Object> target) {
   InitUgcItemStates(target);
 
   SET_FUNCTION("_ugcCreateItem", UGCCreateItem);
+  SET_FUNCTION("_ugcStartItemUpdate", UGCStartItemUpdate);
+  SET_FUNCTION("_ugcSetItemTitle", UGCSetItemTitle);
+  SET_FUNCTION("_ugcSetItemDescription", UGCSetItemDescription);
+  SET_FUNCTION("_ugcSetItemVisibility", UGCSetItemVisibility);
+  SET_FUNCTION("_ugcSetItemTags", UGCSetItemTags);
+  SET_FUNCTION("_ugcSetItemContent", UGCSetItemContent);
+  SET_FUNCTION("_ugcSetItemPreview", UGCSetItemPreview);
   SET_FUNCTION("fileShare", FileShare);
   SET_FUNCTION("_publishWorkshopFile", PublishWorkshopFile);
   SET_FUNCTION("_updatePublishedWorkshopFile", UpdatePublishedWorkshopFile);

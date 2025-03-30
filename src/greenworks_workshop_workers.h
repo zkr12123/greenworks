@@ -41,6 +41,30 @@ class CreateItemWorker : public SteamCallbackAsyncWorker {
 // Definition of ISteamUGC::StartItemUpdate
 // class StartItemUpdateWorker : public 
 
+// Definition of ISteamUGC::SubmitItemUpdate
+class SubmitItemUpdateWorker : public SteamCallbackAsyncWorker {
+    public:
+        SubmitItemUpdateWorker(
+            Nan::Callback* success_callback,
+            Nan::Callback* error_callback,
+            UGCUpdateHandle_t update_handle,
+            const char* change_note
+        );
+
+        void OnSubmitItemUpdateCompleted(
+            SubmitItemUpdateResult_t* result,
+            bool io_failure
+        );
+        void Execute() override;
+        void HandleOKCallback() override;
+
+    private:
+        UGCUpdateHandle_t update_handle_;
+        const char* change_note_;
+        bool user_needs_to_accept_workshop_legal_agreement_;
+        CCallResult<SubmitItemUpdateWorker, SubmitItemUpdateResult_t> call_result_;
+};
+
 class FileShareWorker : public SteamCallbackAsyncWorker {
  public:
   FileShareWorker(Nan::Callback* success_callback,

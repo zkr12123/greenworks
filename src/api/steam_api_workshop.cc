@@ -270,6 +270,54 @@ NAN_METHOD(UGCSetItemDescription) {
   info.GetReturnValue().Set(Nan::New(result));
 }
 
+NAN_METHOD(UGCSetItemUpdateLanguage) {
+  /*
+  Input: 
+    - handle (String): UGCUpdateHandle_t (uint64)
+    - language (String): const char *pchLanguage
+  Output:
+    - Boolean: true if success, false if failed
+  */
+  Nan::HandleScope scope;
+
+  if (info.Length() < 2 || !info[0]->IsString() || !info[1]->IsString()) {
+    THROW_BAD_ARGS("Bad arguments");
+  }
+
+  // Get handle and language
+  UGCUpdateHandle_t update_handle = utils::strToUint64(*(Nan::Utf8String(info[0])));
+  Nan::Utf8String pchLanguage(info[1]);
+
+  // Set language
+  bool result = SteamUGC()->SetItemUpdateLanguage(update_handle, *pchLanguage);
+
+  info.GetReturnValue().Set(Nan::New(result));
+}
+
+NAN_METHOD(UGCSetItemMetadata) {
+  /*
+  Input: 
+    - handle (String): UGCUpdateHandle_t (uint64)
+    - metadata (String): const char *pchMetaData
+  Output:
+    - Boolean: true if success, false if failed
+  */
+  Nan::HandleScope scope;
+
+  if (info.Length() < 2 || !info[0]->IsString() || !info[1]->IsString()) {
+    THROW_BAD_ARGS("Bad arguments");
+  }
+
+  // Get handle and metadata
+  UGCUpdateHandle_t update_handle = utils::strToUint64(*(Nan::Utf8String(info[0])));
+  Nan::Utf8String pchMetaData(info[1]);
+
+  // Set metadata
+  bool result = SteamUGC()->SetItemMetadata(update_handle, *pchMetaData);
+
+  info.GetReturnValue().Set(Nan::New(result));
+}
+
 NAN_METHOD(UGCSetItemVisibility) {
   /*
   Input: 
@@ -334,6 +382,56 @@ NAN_METHOD(UGCSetItemTags) {
   info.GetReturnValue().Set(Nan::New(result));
 }
 
+NAN_METHOD(UGCAddItemKeyValueTag) {
+  /*
+  Input: 
+    - handle (String): UGCUpdateHandle_t (uint64)
+    - key (String): const char *pchKey
+    - value (String): const char *pchValue
+  Output:
+    - Boolean: true if success, false if failed
+  */
+  Nan::HandleScope scope;
+
+  if (info.Length() < 3 || !info[0]->IsString() || !info[1]->IsString() || !info[2]->IsString()) {
+    THROW_BAD_ARGS("Bad arguments");
+  }
+
+  // Get handle, key, and value
+  UGCUpdateHandle_t update_handle = utils::strToUint64(*(Nan::Utf8String(info[0])));
+  Nan::Utf8String pchKey(info[1]);
+  Nan::Utf8String pchValue(info[2]);
+
+  // Set key-value tag
+  bool result = SteamUGC()->AddItemKeyValueTag(update_handle, *pchKey, *pchValue);
+
+  info.GetReturnValue().Set(Nan::New(result));
+}
+
+NAN_METHOD(UGCRemoveItemKeyValueTags) {
+  /*
+  Input: 
+    - handle (String): UGCUpdateHandle_t (uint64)
+    - key (String): const char *pchKey
+  Output:
+    - Boolean: true if success, false if failed
+  */
+  Nan::HandleScope scope;
+
+  if (info.Length() < 2 || !info[0]->IsString() || !info[1]->IsString()) {
+    THROW_BAD_ARGS("Bad arguments");
+  }
+
+  // Get handle and key
+  UGCUpdateHandle_t update_handle = utils::strToUint64(*(Nan::Utf8String(info[0])));
+  Nan::Utf8String pchKey(info[1]);
+
+  // Remove key-value tag
+  bool result = SteamUGC()->RemoveItemKeyValueTags(update_handle, *pchKey);
+
+  info.GetReturnValue().Set(Nan::New(result));
+}
+
 NAN_METHOD(UGCSetItemContent) {
   /*
   Input: 
@@ -380,6 +478,40 @@ NAN_METHOD(UGCSetItemPreview) {
   bool result = SteamUGC()->SetItemPreview(update_handle, *szPreviewFile);
 
   info.GetReturnValue().Set(Nan::New(result));
+}
+
+// UGCSubmitItemUpdate
+NAN_METHOD(UGCSubmitItemUpdate) {
+  /*
+  Input: 
+    - handle (String): UGCUpdateHandle_t (uint64)
+    - change_note (String): const char *pchChangeNote
+    - success_callback (Function): void callback(bool user_needs_to_accept_workshop_legal_agreement)
+    - [error_callback (Function)]
+  Output:
+    - void
+  */
+  Nan::HandleScope scope;
+
+  if (info.Length() < 3 || !info[0]->IsString() || !info[1]->IsString() || !info[2]->IsFunction()) {
+    THROW_BAD_ARGS("Bad arguments");
+  }
+
+  // Get handle, change_note, and success_callback
+  UGCUpdateHandle_t update_handle = utils::strToUint64(*(Nan::Utf8String(info[0])));
+  Nan::Utf8String pchChangeNote(info[1]);
+  Nan::Callback* success_callback = new Nan::Callback(info[2].As<v8::Function>());
+
+  // Instantiate error_callback
+  Nan::Callback* error_callback = nullptr;
+  if (info.Length() > 3 && info[3]->IsFunction())
+    error_callback = new Nan::Callback(info[3].As<v8::Function>());
+
+  // Run the worker
+  Nan::AsyncQueueWorker(new greenworks::SubmitItemUpdateWorker(
+    success_callback, error_callback, update_handle, *pchChangeNote
+  ));
+  info.GetReturnValue().Set(Nan::Undefined());
 }
 
 NAN_METHOD(FileShare) {
@@ -706,10 +838,15 @@ void RegisterAPIs(v8::Local<v8::Object> target) {
   SET_FUNCTION("_ugcStartItemUpdate", UGCStartItemUpdate);
   SET_FUNCTION("_ugcSetItemTitle", UGCSetItemTitle);
   SET_FUNCTION("_ugcSetItemDescription", UGCSetItemDescription);
+  SET_FUNCTION("_ugcSetItemUpdateLanguage", UGCSetItemUpdateLanguage);
+  SET_FUNCTION("_ugcSetItemMetadata", UGCSetItemMetadata);
   SET_FUNCTION("_ugcSetItemVisibility", UGCSetItemVisibility);
   SET_FUNCTION("_ugcSetItemTags", UGCSetItemTags);
+  SET_FUNCTION("_ugcAddItemKeyValueTag", UGCAddItemKeyValueTag);
+  SET_FUNCTION("_ugcRemoveItemKeyValueTags", UGCRemoveItemKeyValueTags);
   SET_FUNCTION("_ugcSetItemContent", UGCSetItemContent);
   SET_FUNCTION("_ugcSetItemPreview", UGCSetItemPreview);
+  SET_FUNCTION("_ugcSubmitItemUpdate", UGCSubmitItemUpdate);
   SET_FUNCTION("fileShare", FileShare);
   SET_FUNCTION("_publishWorkshopFile", PublishWorkshopFile);
   SET_FUNCTION("_updatePublishedWorkshopFile", UpdatePublishedWorkshopFile);

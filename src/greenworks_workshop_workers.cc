@@ -12,6 +12,8 @@
 
 #include "greenworks_utils.h"
 
+#include <cstdio>
+
 namespace {
 
 v8::Local<v8::Object> ConvertToJsObject(const SteamUGCDetails_t& item) {
@@ -132,6 +134,56 @@ void CreateItemWorker::HandleOKCallback() {
   };
   Nan::AsyncResource resource("greenworks:CreateItemWorker.HandleOKCallback");
   callback->Call(2, argv, &resource);
+}
+
+// Implementation of ISteamUGC::SubmitItemUpdate
+SubmitItemUpdateWorker::SubmitItemUpdateWorker(
+  Nan::Callback* success_callback,
+  Nan::Callback* error_callback,
+  UGCUpdateHandle_t update_handle,
+  const char* change_note
+):
+  SteamCallbackAsyncWorker(success_callback, error_callback),
+  update_handle_(update_handle),
+  change_note_(change_note) {
+
+}
+
+void SubmitItemUpdateWorker::Execute() {
+  SteamAPICall_t submit_item_update = SteamUGC()->SubmitItemUpdate(update_handle_, change_note_);
+  if (submit_item_update == k_uAPICallInvalid) {
+    SetErrorMessage("Error on ISteamUGC::SubmitItemUpdate : update_handle is invalid");
+    return;
+  }
+  call_result_.Set(submit_item_update, this, &SubmitItemUpdateWorker::OnSubmitItemUpdateCompleted);
+  WaitForCompleted();
+}
+
+void SubmitItemUpdateWorker::OnSubmitItemUpdateCompleted(
+  SubmitItemUpdateResult_t* result,
+  bool io_failure
+) {
+  if (io_failure) {
+    SetErrorMessage("Error on ISteamUGC::SubmitItemUpdate : Steam API IO Failure");
+  } else if (result->m_eResult == k_EResultOK) {
+    user_needs_to_accept_workshop_legal_agreement_ = result->m_bUserNeedsToAcceptWorkshopLegalAgreement;
+  } else {
+    // Format a const char* message to include the error code and the update_handle
+    char msg[200];
+    snprintf(msg, sizeof(msg), "Error on ISteamUGC::SubmitItemUpdate : result->m_eResult = %d, update_handle = %llu", result->m_eResult, update_handle_);
+    SetErrorMessage(msg);
+  }
+  is_completed_ = true;
+}
+
+void SubmitItemUpdateWorker::HandleOKCallback() {
+  Nan::HandleScope scope;
+
+  v8::Local<v8::Value> argv[] = {
+    Nan::New(user_needs_to_accept_workshop_legal_agreement_)
+  };
+  Nan::AsyncResource resource("greenworks:SubmitItemUpdateWorker.HandleOKCallback");
+  callback->Call(1, argv, &resource);
 }
 
 FileShareWorker::FileShareWorker(Nan::Callback* success_callback,

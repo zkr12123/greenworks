@@ -58,6 +58,22 @@ void InitPublishedFileVisibilityTypes(v8::Local<v8::Object> exports) {
            published_file_visibility_type);
 }
 
+// isteamugc.h: EItemUpdateStatus
+void InitItemUpdateStatusTypes(v8::Local<v8::Object> exports) {
+  v8::Local<v8::Object> item_update_status = Nan::New<v8::Object>();
+  SET_TYPE(item_update_status, "Invalid", k_EItemUpdateStatusInvalid);
+  SET_TYPE(item_update_status, "PreparingConfig", k_EItemUpdateStatusPreparingConfig);
+  SET_TYPE(item_update_status, "PreparingContent", k_EItemUpdateStatusPreparingContent);
+  SET_TYPE(item_update_status, "UploadingContent", k_EItemUpdateStatusUploadingContent);
+  SET_TYPE(item_update_status, "UploadingPreviewFile", k_EItemUpdateStatusUploadingPreviewFile);
+  SET_TYPE(item_update_status, "CommittingChanges", k_EItemUpdateStatusCommittingChanges);
+  Nan::Persistent<v8::Object> constructor;
+  constructor.Reset(item_update_status);
+  Nan::Set(exports,
+           Nan::New("ItemUpdateStatus").ToLocalChecked(),
+           item_update_status);
+}
+
 void InitUgcMatchingTypes(v8::Local<v8::Object> exports) {
   v8::Local<v8::Object> ugc_matching_type = Nan::New<v8::Object>();
   SET_TYPE(ugc_matching_type, "Items", k_EUGCMatchingUGCType_Items);
@@ -514,6 +530,44 @@ NAN_METHOD(UGCSubmitItemUpdate) {
   info.GetReturnValue().Set(Nan::Undefined());
 }
 
+// UGCGetItemUpdateProgress
+NAN_METHOD(UGCGetItemUpdateProgress) {
+  /*
+  Input: 
+    - handle (String): UGCUpdateHandle_t (uint64)
+  Output:
+    - v8::Object:
+      - bytes_uploaded (uint64_t): uint64
+      - bytes_total (uint64_t): uint64
+  */
+  Nan::HandleScope scope;
+
+  if (info.Length() < 1 || !info[0]->IsString()) {
+    THROW_BAD_ARGS("Bad arguments");
+  }
+
+  // Get handle
+  UGCUpdateHandle_t update_handle = utils::strToUint64(*(Nan::Utf8String(info[0])));
+
+  // Get progress
+  uint64_t bytes_uploaded = 0;
+  uint64_t bytes_total = 0;
+
+  EItemUpdateStatus status = SteamUGC()->GetItemUpdateProgress(
+    update_handle, &bytes_uploaded, &bytes_total);
+
+  // Create a result object
+  double uploaded = static_cast<double>(bytes_uploaded);
+  double total = static_cast<double>(bytes_total);
+  v8::Local<v8::Object> result = Nan::New<v8::Object>();
+  // Nan::Set(result, Nan::New("Test").ToLocalChecked(), Nan::New(1));
+  Nan::Set(result, Nan::New("Status").ToLocalChecked(), Nan::New(status));
+  Nan::Set(result, Nan::New("BytesUploaded").ToLocalChecked(), Nan::New(uploaded));
+  Nan::Set(result, Nan::New("BytesTotal").ToLocalChecked(), Nan::New(total));
+
+  info.GetReturnValue().Set(result);
+}
+
 NAN_METHOD(FileShare) {
   Nan::HandleScope scope;
 
@@ -833,6 +887,7 @@ void RegisterAPIs(v8::Local<v8::Object> target) {
   InitUserUgcListSortOrder(target);
   InitUserUgcList(target);
   InitUgcItemStates(target);
+  InitItemUpdateStatusTypes(target);
 
   SET_FUNCTION("_ugcCreateItem", UGCCreateItem);
   SET_FUNCTION("_ugcStartItemUpdate", UGCStartItemUpdate);
@@ -847,6 +902,7 @@ void RegisterAPIs(v8::Local<v8::Object> target) {
   SET_FUNCTION("_ugcSetItemContent", UGCSetItemContent);
   SET_FUNCTION("_ugcSetItemPreview", UGCSetItemPreview);
   SET_FUNCTION("_ugcSubmitItemUpdate", UGCSubmitItemUpdate);
+  SET_FUNCTION("_ugcGetItemUpdateProgress", UGCGetItemUpdateProgress);
   SET_FUNCTION("fileShare", FileShare);
   SET_FUNCTION("_publishWorkshopFile", PublishWorkshopFile);
   SET_FUNCTION("_updatePublishedWorkshopFile", UpdatePublishedWorkshopFile);

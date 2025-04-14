@@ -5,6 +5,7 @@ lib/
 download/
 dist/
 deps/steamworks*
+!deps/steamworks_sdk.zip
 test/steam_appid.txt
 steam_appid.txt
 *.pyc
